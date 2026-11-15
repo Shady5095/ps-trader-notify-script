@@ -18,9 +18,9 @@ export function matchesPs5(ad) {
 export async function fetchDubizzleVideoGames() {
   let targetUrl = CONFIG.TARGET_CATEGORY_URL;
 
-  // 1. If ScraperAPI is configured (Enable premium=true for protected domains like Dubizzle)
+  // 1. If ScraperAPI is configured (Enable premium=true and render=true to execute JS challenge)
   if (CONFIG.SCRAPERAPI_KEY) {
-    targetUrl = `https://api.scraperapi.com?api_key=${CONFIG.SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}&premium=true`;
+    targetUrl = `https://api.scraperapi.com?api_key=${CONFIG.SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}&premium=true&render=true`;
   }
   // 2. If ScrapeOps is configured
   else if (CONFIG.SCRAPEOPS_API_KEY) {
