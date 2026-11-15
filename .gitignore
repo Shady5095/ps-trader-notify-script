@@ -1,0 +1,12 @@
+# Secrets and sensitive environment variables
+.env
+
+# Dependencies
+node_modules/
+
+# Local cache/state
+seen_ads.json
+
+# Logs
+*.log
+npm-debug.log*
