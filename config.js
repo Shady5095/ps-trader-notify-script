@@ -54,9 +54,8 @@ export const CONFIG = {
   // true = send notifications immediately for everything found currently
   ALERT_ON_INITIAL_RUN: process.env.ALERT_ON_INITIAL_RUN === 'true',
 
-  // Dubizzle Target URL - Video Games & Consoles category sorted newest first
-  TARGET_CATEGORY_URL: process.env.TARGET_URL || 'https://www.dubizzle.com.eg/en/video-games-consoles/q-ps5/?sorting=desc-creation',
-  FALLBACK_CATEGORY_URL: 'https://www.dubizzle.com.eg/en/video-games-consoles/?sorting=desc-creation',
+  // Dubizzle Target URL - Video Games & Consoles category sorted by newest first
+  TARGET_CATEGORY_URL: process.env.TARGET_URL || 'https://www.dubizzle.com.eg/en/electronics-home-appliances/video-games-and-consoles/?sorting=desc-creation',
 
   // Optional: Browser Cookie to bypass Cloudflare/PerimeterX if needed
   DUBIZZLE_COOKIE: process.env.DUBIZZLE_COOKIE || '',

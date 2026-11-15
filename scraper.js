@@ -51,10 +51,8 @@ export async function fetchDubizzleVideoGames() {
     const html = await response.text();
     const allAds = parseAdsFromHtml(html);
     
-    // Filter only ads that match PS5 keywords
-    const ps5Ads = allAds.filter(ad => matchesPs5(ad));
-    console.log(`[Dubizzle] تم العثور على ${allAds.length} إعلان في قسم ألعاب الفيديو، منها ${ps5Ads.length} لجهاز PS5.`);
-    return ps5Ads;
+    console.log(`[Dubizzle] تم جلب ${allAds.length} إعلان من قسم ألعاب الفيديو والأجهزة.`);
+    return allAds;
   } catch (err) {
     if (err.name === 'AbortError') {
       console.error(`[Dubizzle] مهلة الاتصال انتهت (Timeout) أثناء جلب دوبيزل`);

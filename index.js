@@ -108,7 +108,7 @@ async function performScanCycle() {
       // Immediately record ad as seen so concurrent searches don't duplicate
       markAdAsSeen(ad.id);
 
-      console.log(`\n🆕 تم العثور على إعلان PS5 جديد:`);
+      console.log(`\n🆕 تم العثور على إعلان جديد في قسم ألعاب الفيديو:`);
       console.log(`   📌 العنوان: ${ad.title}`);
       console.log(`   💰 السعر: ${ad.price}`);
       console.log(`   📍 الموقع: ${ad.location}`);
@@ -120,19 +120,18 @@ async function performScanCycle() {
       }
 
       // Verify with Gemini AI
-      console.log(`   🤖 جاري الفحص عبر Google Gemini AI للتأكد من أنه كونسول حقيقي...`);
+      console.log(`   🤖 جاري إرسال الإعلان لـ Gemini AI لتحديد إذا كان كونسول PS5 حقيقي أم لا...`);
       const aiResult = await verifyWithGemini(ad);
 
       if (aiResult.is_ps5_console) {
         validPs5Count++;
         verifiedPs5FoundCount++;
-        console.log(`   ✅ معتمد من AI: [${aiResult.model}]`);
-        console.log(`   💡 السبب: ${aiResult.reason}`);
-        console.log(`   📲 جاري إرسال إشعار فوري إلى الموبايل...`);
+        console.log(`   🎮 وجدنا جهاز PS5 حقيقي! [${aiResult.model}]`);
+        console.log(`   💡 تقييم AI: ${aiResult.reason}`);
+        console.log(`   📲 جاري إرسال إشعار فوري إلى تليجرام...`);
         await sendNotification(ad, aiResult);
       } else {
-        console.log(`   ❌ تم الاستبعاد بواسطة الذكاء الاصطناعي: ليس جهاز بلايستيشن 5.`);
-        console.log(`   💡 السبب: ${aiResult.reason}`);
+        console.log(`   ❌ استبعاد: ${aiResult.reason}`);
       }
     }
   }
