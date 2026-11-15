@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { CONFIG } from './config.js';
-import { searchDubizzle } from './scraper.js';
+import { fetchDubizzleVideoGames } from './scraper.js';
 import { verifyWithGemini } from './gemini.js';
 import { sendNotification } from './notifier.js';
 import { loadSeenAds, isAdSeen, markAdAsSeen } from './storage.js';
@@ -59,18 +59,17 @@ function sleep(ms) {
 
 function printBanner() {
   console.log('================================================================');
-  console.log('🎮 رادار دوبيزل مصر لأجهزة PlayStation 5 (مع Gemini AI)');
+  console.log('🎮 رادار دوبيزل مصر لأجهزة PlayStation 5 (الوضع الهادئ السحابي)');
   console.log('================================================================');
   console.log(`⏱️  فترة التحديث: كل ${CONFIG.CHECK_INTERVAL_MINUTES} دقائق`);
+  console.log(`🎯 المستهدف: قسم ألعاب الفيديو (Video Games & Consoles) الأحدث`);
   console.log(`🔑 حالة Gemini AI: ${CONFIG.GEMINI_API_KEY ? '✅ متصل (' + CONFIG.GEMINI_MODEL + ')' : '⚠️ غير محدد في .env'}`);
   console.log(`📱 إشعارات تليجرام: ${CONFIG.TELEGRAM_BOT_TOKEN ? '✅ مفعلة' : '⚠️ غير محددة'}`);
-  console.log(`🔔 إشعارات ntfy: ${CONFIG.NTFY_TOPIC ? '✅ مفعلة (' + CONFIG.NTFY_TOPIC + ')' : 'غير محددة'}`);
-  console.log(`🔍 عدد كلمات البحث المستهدفة: ${CONFIG.KEYWORDS.length} كلمة دلالية (عربي وإنجليزي)`);
   console.log('================================================================\n');
 }
 
 /**
- * Executes a single search cycle across all keywords
+ * Executes a single stealth search cycle on Video Games category
  */
 async function performScanCycle() {
   if (isRunning) {
@@ -83,7 +82,7 @@ async function performScanCycle() {
   const cycleStartTime = new Date();
   lastScanTime = cycleStartTime.toLocaleTimeString('ar-EG');
   console.log(`\n------------------------------------------------------------`);
-  console.log(`🚀 بدء دورة الفحص رقم #${runCount} [${cycleStartTime.toLocaleTimeString('ar-EG')}]`);
+  console.log(`🚀 بدء دورة الفحص رقم #${runCount} [${lastScanTime}]`);
   console.log(`------------------------------------------------------------`);
 
   const seenAds = loadSeenAds();
@@ -96,60 +95,53 @@ async function performScanCycle() {
     }
   }
 
-  let totalFoundThisCycle = 0;
   let newAdsCount = 0;
   let validPs5Count = 0;
 
-  for (let i = 0; i < CONFIG.KEYWORDS.length; i++) {
-    const keyword = CONFIG.KEYWORDS[i];
-    console.log(`🔍 [${i + 1}/${CONFIG.KEYWORDS.length}] البحث بكلمة: "${keyword}"...`);
+  console.log(`🔍 جلب أحدث إعلانات قسم ألعاب الفيديو من دوبيزل...`);
+  const ads = await fetchDubizzleVideoGames();
+  totalAdsFoundCount += ads.length;
 
-    const ads = await searchDubizzle(keyword);
-    totalFoundThisCycle += ads.length;
+  for (const ad of ads) {
+    if (!isAdSeen(ad.id)) {
+      newAdsCount++;
+      // Immediately record ad as seen so concurrent searches don't duplicate
+      markAdAsSeen(ad.id);
 
-    for (const ad of ads) {
-      if (!isAdSeen(ad.id)) {
-        newAdsCount++;
-        // Immediately record ad as seen so concurrent searches don't duplicate
-        markAdAsSeen(ad.id);
+      console.log(`\n🆕 تم العثور على إعلان PS5 جديد:`);
+      console.log(`   📌 العنوان: ${ad.title}`);
+      console.log(`   💰 السعر: ${ad.price}`);
+      console.log(`   📍 الموقع: ${ad.location}`);
 
-        console.log(`\n🆕 تم العثور على إعلان جديد لم يسجل من قبل:`);
-        console.log(`   📌 العنوان: ${ad.title}`);
-        console.log(`   💰 السعر: ${ad.price}`);
-        console.log(`   📍 الموقع: ${ad.location}`);
+      // If it's the very first run and user disabled alerting for existing ads
+      if (isFirstRun && !CONFIG.ALERT_ON_INITIAL_RUN) {
+        console.log(`   💾 تم تسجيله في القاعدة بدون إرسال إشعار (التشغيل الأولي).`);
+        continue;
+      }
 
-        // If it's the very first run and user disabled alerting for existing ads
-        if (isFirstRun && !CONFIG.ALERT_ON_INITIAL_RUN) {
-          console.log(`   💾 تم تسجيله في القاعدة بدون إرسال إشعار (التشغيل الأولي).`);
-          continue;
-        }
+      // Verify with Gemini AI
+      console.log(`   🤖 جاري الفحص عبر Google Gemini AI للتأكد من أنه كونسول حقيقي...`);
+      const aiResult = await verifyWithGemini(ad);
 
-        // Verify with Gemini AI
-        console.log(`   🤖 جاري الفحص عبر Google Gemini AI للتأكد من أنه كونسول PS5 وليس لعبة أو ذراع...`);
-        const aiResult = await verifyWithGemini(ad);
-
-        if (aiResult.is_ps5_console) {
-          validPs5Count++;
-          console.log(`   ✅ معتمد من AI: [${aiResult.model}]`);
-          console.log(`   💡 السبب: ${aiResult.reason}`);
-          console.log(`   📲 جاري إرسال إشعار فوري إلى الموبايل...`);
-          await sendNotification(ad, aiResult);
-        } else {
-          console.log(`   ❌ تم الاستبعاد بواسطة الذكاء الاصطناعي: ليس جهاز بلايستيشن 5.`);
-          console.log(`   💡 السبب: ${aiResult.reason}`);
-        }
+      if (aiResult.is_ps5_console) {
+        validPs5Count++;
+        verifiedPs5FoundCount++;
+        console.log(`   ✅ معتمد من AI: [${aiResult.model}]`);
+        console.log(`   💡 السبب: ${aiResult.reason}`);
+        console.log(`   📲 جاري إرسال إشعار فوري إلى الموبايل...`);
+        await sendNotification(ad, aiResult);
+      } else {
+        console.log(`   ❌ تم الاستبعاد بواسطة الذكاء الاصطناعي: ليس جهاز بلايستيشن 5.`);
+        console.log(`   💡 السبب: ${aiResult.reason}`);
       }
     }
-
-    // Polite delay between queries (1.5 seconds) to avoid spamming the server
-    await sleep(1500);
   }
 
   const durationSec = Math.round((Date.now() - cycleStartTime.getTime()) / 1000);
   console.log(`\n🏁 انتهاء دورة الفحص #${runCount} في ${durationSec} ثانية.`);
   console.log(`📊 الإحصائيات:`);
-  console.log(`   - إجمالي الإعلانات المفحوصة: ${totalFoundThisCycle}`);
-  console.log(`   - إعلانات جديدة مكتشفة: ${newAdsCount}`);
+  console.log(`   - إعلانات PS5 المكتشفة في هذه الدورة: ${ads.length}`);
+  console.log(`   - إعلانات جديدة لم ترها من قبل: ${newAdsCount}`);
   console.log(`   - أجهزة PS5 معتمدة وتم إشعارها: ${validPs5Count}`);
   console.log(`⏳ الفحص القادم بعد ${CONFIG.CHECK_INTERVAL_MINUTES} دقائق...`);
 

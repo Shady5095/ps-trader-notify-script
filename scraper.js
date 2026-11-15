@@ -1,56 +1,78 @@
 import { CONFIG } from './config.js';
 
 /**
- * Searches Dubizzle Egypt for ads matching a given keyword across all categories.
- * @param {string} keyword 
+ * Checks if an ad title or description mentions PlayStation 5
+ * @param {Object} ad 
+ * @returns {boolean}
+ */
+export function matchesPs5(ad) {
+  const text = `${ad.title || ''} ${ad.description || ''}`;
+  return CONFIG.PS5_PATTERNS.some(pattern => pattern.test(text));
+}
+
+/**
+ * Searches Dubizzle Egypt in the Video Games & Consoles category
+ * Uses a single polite request every 5 minutes to avoid bot detection and 403 blocks.
  * @returns {Promise<Array>} List of extracted ad objects
  */
-export async function searchDubizzle(keyword) {
-  // Dubizzle keyword formatting: spaces replaced with hyphens or encoded
-  const encodedQuery = encodeURIComponent(keyword.trim().replace(/\s+/g, '-'));
-  
-  // Search across all categories sorted by newest first
-  const searchUrl = `${CONFIG.BASE_URL_EN}/ads/q-${encodedQuery}/?sorting=desc-creation`;
+export async function fetchDubizzleVideoGames() {
+  let targetUrl = CONFIG.TARGET_CATEGORY_URL;
+
+  // If a free proxy unblocker like ScrapeOps is configured
+  if (CONFIG.SCRAPEOPS_API_KEY) {
+    targetUrl = `https://proxy.scrapeops.io/v1/?api_key=${CONFIG.SCRAPEOPS_API_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=false`;
+  }
+
+  const headers = { ...CONFIG.REQUEST_HEADERS };
+  if (CONFIG.DUBIZZLE_COOKIE) {
+    headers['Cookie'] = CONFIG.DUBIZZLE_COOKIE;
+  }
 
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
 
-    const response = await fetch(searchUrl, {
-      headers: CONFIG.REQUEST_HEADERS,
+    const response = await fetch(targetUrl, {
+      headers,
       signal: controller.signal
     });
     clearTimeout(timeout);
 
     if (!response.ok) {
-      // If 404 or empty results, return empty array
-      if (response.status === 404) return [];
-      console.warn(`[Dubizzle] Warning: HTTP ${response.status} for query "${keyword}"`);
+      if (response.status === 403) {
+        console.warn(`[Dubizzle] ⚠️ تحذير: تم تلقي كود 403 من حماية دوبيزل.`);
+        console.warn(`[Dubizzle] 💡 نصيحة: إذا كنت على سيرفر سحابي (Render)، يمكنك إضافة DUBIZZLE_COOKIE في المتغيرات لتخطي الحماية.`);
+      } else {
+        console.warn(`[Dubizzle] Warning: HTTP ${response.status} from Dubizzle`);
+      }
       return [];
     }
 
     const html = await response.text();
-    return parseAdsFromHtml(html);
+    const allAds = parseAdsFromHtml(html);
+    
+    // Filter only ads that match PS5 keywords
+    const ps5Ads = allAds.filter(ad => matchesPs5(ad));
+    console.log(`[Dubizzle] تم العثور على ${allAds.length} إعلان في قسم ألعاب الفيديو، منها ${ps5Ads.length} لجهاز PS5.`);
+    return ps5Ads;
   } catch (err) {
     if (err.name === 'AbortError') {
-      console.error(`[Dubizzle] Timeout fetching search for "${keyword}"`);
+      console.error(`[Dubizzle] مهلة الاتصال انتهت (Timeout) أثناء جلب دوبيزل`);
     } else {
-      console.error(`[Dubizzle] Error fetching query "${keyword}":`, err.message);
+      console.error(`[Dubizzle] خطأ في جلب الإعلانات:`, err.message);
     }
     return [];
   }
 }
 
 /**
- * Parses ad listings from Dubizzle HTML using multiple strategies:
- * 1. Next.js __NEXT_DATA__ state (richest and most accurate)
- * 2. Regular Expressions & HTML structure fallback
+ * Parses ad listings from Dubizzle HTML
  */
 function parseAdsFromHtml(html) {
   const ads = [];
   const seenIds = new Set();
 
-  // Strategy 1: Check for Next.js __NEXT_DATA__
+  // Strategy 1: Next.js __NEXT_DATA__
   try {
     const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
     if (nextDataMatch && nextDataMatch[1]) {
@@ -62,16 +84,11 @@ function parseAdsFromHtml(html) {
           ads.push(item);
         }
       }
-      if (ads.length > 0) {
-        return ads;
-      }
+      if (ads.length > 0) return ads;
     }
-  } catch (e) {
-    // If JSON parsing fails, continue to HTML fallback
-  }
+  } catch {}
 
   // Strategy 2: HTML Regex Fallback
-  // Matches ad cards containing links to /ad/ or /en/ad/
   try {
     const linkRegex = /href="(\/(?:en\/|ar\/)?ad\/[^"]+)"/g;
     let match;
@@ -79,14 +96,12 @@ function parseAdsFromHtml(html) {
       const relativeUrl = match[1];
       const fullUrl = relativeUrl.startsWith('http') ? relativeUrl : `https://www.dubizzle.com.eg${relativeUrl}`;
       
-      // Extract unique ID from URL (e.g. ID123456789.html or last digits)
       const idMatch = relativeUrl.match(/ID([0-9a-zA-Z]+)/i) || relativeUrl.match(/[-_](\d{6,})/);
       const id = idMatch ? idMatch[1] : relativeUrl;
 
       if (!seenIds.has(id)) {
         seenIds.add(id);
 
-        // Find surrounding HTML snippet to extract title and price
         const startPos = Math.max(0, match.index - 200);
         const endPos = Math.min(html.length, match.index + 800);
         const snippet = html.substring(startPos, endPos);
@@ -111,7 +126,7 @@ function parseAdsFromHtml(html) {
       }
     }
   } catch (err) {
-    console.error('[Dubizzle] Error in HTML fallback parser:', err.message);
+    console.error('[Dubizzle] خطأ في استخراج الإعلانات من كود HTML:', err.message);
   }
 
   return ads;
@@ -130,7 +145,6 @@ function extractAdsFromNextData(obj) {
     if (Array.isArray(node)) {
       for (const item of node) {
         if (item && typeof item === 'object') {
-          // Check if item looks like an ad
           if (isAdObject(item)) {
             const ad = formatAdObject(item);
             if (ad && !seenIds.has(ad.id)) {
@@ -165,9 +179,6 @@ function extractAdsFromNextData(obj) {
   return results;
 }
 
-/**
- * Heuristic check if an object represents an ad
- */
 function isAdObject(obj) {
   return (
     obj &&
@@ -177,16 +188,12 @@ function isAdObject(obj) {
   );
 }
 
-/**
- * Standardizes an ad object
- */
 function formatAdObject(item) {
   const id = item.id || item.ad_id || item.itemId;
   if (!id) return null;
 
   const title = item.title || item.subject || 'PlayStation 5';
   
-  // Format price
   let price = 'غير محدد';
   if (item.price) {
     if (typeof item.price === 'object') {
@@ -200,7 +207,6 @@ function formatAdObject(item) {
     price = item.displayPrice;
   }
 
-  // Location
   let location = 'مصر';
   if (item.location) {
     if (typeof item.location === 'string') location = item.location;
@@ -210,7 +216,6 @@ function formatAdObject(item) {
     location = typeof item.city === 'object' ? item.city.name : item.city;
   }
 
-  // URL
   let url = '';
   if (item.url) {
     url = item.url.startsWith('http') ? item.url : `https://www.dubizzle.com.eg${item.url}`;
@@ -220,7 +225,6 @@ function formatAdObject(item) {
     url = `https://www.dubizzle.com.eg/en/ad/${id}`;
   }
 
-  // Image
   let imageUrl = null;
   if (item.images && Array.isArray(item.images) && item.images.length > 0) {
     imageUrl = item.images[0].url || item.images[0].external_url || item.images[0];
@@ -228,7 +232,6 @@ function formatAdObject(item) {
     imageUrl = item.photos[0].url || item.photos[0];
   }
 
-  // Description
   const description = item.description || item.body || '';
 
   return {
@@ -240,31 +243,4 @@ function formatAdObject(item) {
     imageUrl,
     description
   };
-}
-
-/**
- * Optionally fetches full ad page to get complete description if needed
- */
-export async function fetchAdDetails(adUrl) {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-
-    const res = await fetch(adUrl, {
-      headers: CONFIG.REQUEST_HEADERS,
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-
-    if (!res.ok) return null;
-    const html = await res.text();
-
-    // Check description in NextData or meta description
-    const descMatch = html.match(/<meta\s+name="description"\s+content="([^"]*)"/i) ||
-                      html.match(/<div[^>]*data-aut-id="itemDescriptionContent"[^>]*>([\s\S]*?)<\/div>/i);
-    
-    return descMatch ? descMatch[1].replace(/<[^>]+>/g, '').trim() : '';
-  } catch {
-    return '';
-  }
 }
