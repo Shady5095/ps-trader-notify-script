@@ -60,7 +60,8 @@ export const CONFIG = {
   // Optional: Browser Cookie to bypass Cloudflare/PerimeterX if needed
   DUBIZZLE_COOKIE: process.env.DUBIZZLE_COOKIE || '',
 
-  // Optional: Free ScrapeOps API key to bypass Cloudflare on cloud servers
+  // Optional: Free Web Scraping Proxy APIs to bypass Cloudflare/PerimeterX on cloud servers
+  SCRAPERAPI_KEY: process.env.SCRAPERAPI_KEY || '',
   SCRAPEOPS_API_KEY: process.env.SCRAPEOPS_API_KEY || '',
 
   // Comprehensive Keywords to match in listings

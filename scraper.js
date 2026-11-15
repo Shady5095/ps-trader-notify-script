@@ -18,9 +18,13 @@ export function matchesPs5(ad) {
 export async function fetchDubizzleVideoGames() {
   let targetUrl = CONFIG.TARGET_CATEGORY_URL;
 
-  // If a free proxy unblocker like ScrapeOps is configured
-  if (CONFIG.SCRAPEOPS_API_KEY) {
-    targetUrl = `https://proxy.scrapeops.io/v1/?api_key=${CONFIG.SCRAPEOPS_API_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=false`;
+  // 1. If ScraperAPI is configured (Best for Egypt Cloudflare bypass)
+  if (CONFIG.SCRAPERAPI_KEY) {
+    targetUrl = `https://api.scraperapi.com?api_key=${CONFIG.SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=eg`;
+  }
+  // 2. If ScrapeOps is configured
+  else if (CONFIG.SCRAPEOPS_API_KEY) {
+    targetUrl = `https://proxy.scrapeops.io/v1/?api_key=${CONFIG.SCRAPEOPS_API_KEY}&url=${encodeURIComponent(targetUrl)}&residential=true`;
   }
 
   const headers = { ...CONFIG.REQUEST_HEADERS };
