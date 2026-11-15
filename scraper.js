@@ -33,8 +33,9 @@ export async function fetchDubizzleVideoGames() {
   }
 
   try {
+    // Give proxies and residential connections up to 60s to resolve smoothly
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 60000);
 
     const response = await fetch(targetUrl, {
       headers,
