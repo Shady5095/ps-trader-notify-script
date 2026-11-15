@@ -18,9 +18,9 @@ export function matchesPs5(ad) {
 export async function fetchDubizzleVideoGames() {
   let targetUrl = CONFIG.TARGET_CATEGORY_URL;
 
-  // 1. If ScraperAPI is configured (Best for Egypt Cloudflare bypass)
+  // 1. If ScraperAPI is configured (Default smart pool without restricted geotargeting)
   if (CONFIG.SCRAPERAPI_KEY) {
-    targetUrl = `https://api.scraperapi.com?api_key=${CONFIG.SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=eg`;
+    targetUrl = `https://api.scraperapi.com?api_key=${CONFIG.SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}`;
   }
   // 2. If ScrapeOps is configured
   else if (CONFIG.SCRAPEOPS_API_KEY) {
@@ -44,11 +44,11 @@ export async function fetchDubizzleVideoGames() {
     clearTimeout(timeout);
 
     if (!response.ok) {
+      const errSnippet = await response.text().catch(() => '');
       if (response.status === 403) {
         console.warn(`[Dubizzle] ⚠️ تحذير: تم تلقي كود 403 من حماية دوبيزل.`);
-        console.warn(`[Dubizzle] 💡 نصيحة: إذا كنت على سيرفر سحابي (Render)، يمكنك إضافة DUBIZZLE_COOKIE في المتغيرات لتخطي الحماية.`);
       } else {
-        console.warn(`[Dubizzle] Warning: HTTP ${response.status} from Dubizzle`);
+        console.warn(`[Dubizzle] Warning: HTTP ${response.status} from proxy/target: ${errSnippet.slice(0, 160)}`);
       }
       return [];
     }
