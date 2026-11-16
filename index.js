@@ -103,10 +103,12 @@ async function performScanCycle() {
   let ads = [];
   try {
     ads = await scrapeWithBrowser();
-    if (!ads || ads.length === 0) {
-      ads = await fetchDubizzleVideoGames();
-    }
-  } catch {
+  } catch (err) {
+    console.error('[Engine] تعذر تشغيل متصفح الكروم:', err.message);
+  }
+
+  // Fallback only if browser failed to start
+  if (!ads || ads.length === 0) {
     ads = await fetchDubizzleVideoGames();
   }
   totalAdsFoundCount += ads.length;
