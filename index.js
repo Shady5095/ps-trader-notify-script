@@ -1,6 +1,7 @@
 import http from 'node:http';
 import { CONFIG } from './config.js';
 import { fetchDubizzleVideoGames } from './scraper.js';
+import { scrapeWithBrowser } from './browser-scraper.js';
 import { verifyWithGemini } from './gemini.js';
 import { sendNotification } from './notifier.js';
 import { loadSeenAds, isAdSeen, markAdAsSeen } from './storage.js';
@@ -99,7 +100,15 @@ async function performScanCycle() {
   let validPs5Count = 0;
 
   console.log(`🔍 جلب أحدث إعلانات قسم ألعاب الفيديو من دوبيزل...`);
-  const ads = await fetchDubizzleVideoGames();
+  let ads = [];
+  try {
+    ads = await scrapeWithBrowser();
+    if (!ads || ads.length === 0) {
+      ads = await fetchDubizzleVideoGames();
+    }
+  } catch {
+    ads = await fetchDubizzleVideoGames();
+  }
   totalAdsFoundCount += ads.length;
 
   for (const ad of ads) {

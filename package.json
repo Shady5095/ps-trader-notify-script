@@ -21,6 +21,8 @@
   "license": "MIT",
   "dependencies": {
     "cheerio": "^1.0.0-rc.12",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "puppeteer-core": "^25.17.0",
+    "puppeteer-real-browser": "^1.4.4"
   }
 }
